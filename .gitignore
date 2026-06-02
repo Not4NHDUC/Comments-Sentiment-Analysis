@@ -2,7 +2,7 @@ __pycache__/
 *.pyc
 *.pyo
 .env
-models/*.pkl
+# models/*.pkl
 data/raw/*.json
 *.egg-info/
 .DS_Store
