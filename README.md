@@ -1,7 +1,7 @@
-# 🎯 Phân Loại Cảm Xúc Đánh Giá Sản Phẩm Tiếng Việt
+# Phân Loại Cảm Xúc Đánh Giá Sản Phẩm Tiếng Việt
 
-Môn: Máy Học & Khai Phá Dữ Liệu — HUST  
-Nhóm: 404 Not Found
+Môn: Học Máy & Khai Phá Dữ Liệu — HUST  
+
 
 ## Mô tả
 Hệ thống ML/NLP tự động phân loại cảm xúc đánh giá sản phẩm tiếng Việt  
@@ -10,7 +10,7 @@ từ các sàn TMĐT (Tiki, Shopee, Lazada) thành 3 nhãn: **Positive / Neutral
 ## Kết quả
 | Model | Feature | F1-macro |
 |-------|---------|----------|
-| **SVM** | **TF-IDF** | **0.7279** ✅ |
+| **SVM** | **TF-IDF** | **0.7279** |
 | XGBoost | BoW | 0.7005 |
 | XGBoost | TF-IDF | 0.6772 |
 | NaiveBayes | BoW | 0.6645 |
@@ -63,6 +63,11 @@ uvicorn app.main:app --reload
 # Terminal 2 - Dashboard
 streamlit run app/dashboard.py
 ```
+
+> **Lưu ý:** Model PhoBERT (~500MB) không được include trong repo do giới hạn GitHub.  
+> Để dùng PhoBERT, chạy trước: `python src/models/train_phobert.py` (~15-20 phút, cần GPU CUDA)  
+> Nếu không có GPU, dashboard vẫn hoạt động bình thường với model TF-IDF+SVM.
+
 Mở trình duyệt: http://localhost:8501
 
 ## Tech Stack
