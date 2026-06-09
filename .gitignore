@@ -7,3 +7,4 @@ data/raw/*.json
 *.egg-info/
 .DS_Store
 Thumbs.db
+models/phobert/ 
