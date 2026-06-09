@@ -1,5 +1,5 @@
 {
   "feature": "TF-IDF",
   "model": "SVM",
-  "f1_macro_test": 0.7279
+  "f1_macro_test": 0.6943
 }

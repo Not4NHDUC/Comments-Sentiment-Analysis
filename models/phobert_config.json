@@ -1,0 +1,6 @@
+{
+  "model": "PhoBERT",
+  "feature": "vinai/phobert-base-v2",
+  "f1_macro_test": 0.7537,
+  "best_epoch": 2
+}

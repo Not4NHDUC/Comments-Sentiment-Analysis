@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import json
 import pickle
@@ -19,6 +20,8 @@ st.set_page_config(
     layout="wide",
 )
 
+PHOBERT_AVAILABLE = os.path.exists("models/phobert_config.json")
+
 
 @st.cache_resource
 def load_model():
@@ -29,11 +32,59 @@ def load_model():
     return vectorizer, model, label_mapping, config
 
 
+@st.cache_resource
+def load_phobert_model():
+    import torch
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+    tokenizer = AutoTokenizer.from_pretrained("models/phobert")
+    model = AutoModelForSequenceClassification.from_pretrained("models/phobert")
+    model.eval()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    label_mapping = json.load(open("models/phobert_label_mapping.json"))
+    return tokenizer, model, label_mapping, device
+
+
+def check_rating_pattern(text: str):
+    text_lower = text.strip().lower()
+    one_star = r'^(1\s*sao|1\s*star|1/5|1\s*điểm|một\s*sao)[\s\.,!]*$'
+    two_star = r'^(2\s*sao|2\s*star|2/5|hai\s*sao)[\s\.,!]*$'
+    five_star = r'^(5\s*sao|5\s*star|5/5|năm\s*sao)[\s\.,!]*$'
+    four_star = r'^(4\s*sao|4\s*star|4/5|bốn\s*sao)[\s\.,!]*$'
+    if re.match(one_star, text_lower) or re.match(two_star, text_lower):
+        return "Negative"
+    if re.match(five_star, text_lower) or re.match(four_star, text_lower):
+        return "Positive"
+    return None
+
+
 def predict_one(text: str, vectorizer, model, label_mapping) -> dict:
+    early = check_rating_pattern(text)
+    if early is not None:
+        return {"label": early, "confidence": 1.0, "probabilities": {early: 1.0}}
     clean = preprocess(text)
     vec = vectorizer.transform([clean])
     proba = model.predict_proba(vec)[0]
     idx = proba.argmax()
+    return {
+        "label": label_mapping[str(idx)],
+        "confidence": round(float(proba.max()), 4),
+        "probabilities": {
+            label_mapping[str(i)]: round(float(p), 4) for i, p in enumerate(proba)
+        },
+    }
+
+
+def predict_one_phobert(text: str, tokenizer, model, label_mapping, device) -> dict:
+    early = check_rating_pattern(text)
+    if early is not None:
+        return {"label": early, "confidence": 1.0, "probabilities": {early: 1.0}}
+    import torch
+    inputs = tokenizer(text, return_tensors="pt", max_length=128, truncation=True, padding=True)
+    with torch.no_grad():
+        logits = model(**{k: v.to(device) for k, v in inputs.items()}).logits
+    proba = torch.softmax(logits, dim=1).cpu().numpy()[0]
+    idx = int(proba.argmax())
     return {
         "label": label_mapping[str(idx)],
         "confidence": round(float(proba.max()), 4),
@@ -51,9 +102,11 @@ st.sidebar.title("⚙️ Thông tin mô hình")
 st.sidebar.write(f"**Model:** {config['model']}")
 st.sidebar.write(f"**Feature:** {config['feature']}")
 st.sidebar.write(f"**F1-macro:** {config['f1_macro_test']:.4f}")
+if PHOBERT_AVAILABLE:
+    phobert_config = json.load(open("models/phobert_config.json"))
+    st.sidebar.markdown("---")
+    st.sidebar.write(f"**PhoBERT F1-macro:** {phobert_config['f1_macro_test']:.4f}")
 st.sidebar.markdown("---")
-st.sidebar.markdown("Môn: Máy Học & Khai Phá Dữ Liệu")
-st.sidebar.markdown("HUST — Nhóm 404 Not Found")
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3 = st.tabs(
@@ -65,6 +118,16 @@ tab1, tab2, tab3 = st.tabs(
 # ════════════════════════════════════════════════════════════════════════════
 with tab1:
     st.header("Phân tích cảm xúc một đánh giá")
+
+    if PHOBERT_AVAILABLE:
+        model_choice = st.radio(
+            "Chọn model:",
+            ["TF-IDF + SVM", "PhoBERT"],
+            horizontal=True,
+        )
+    else:
+        model_choice = "TF-IDF + SVM"
+
     text_input = st.text_area(
         "Nhập đánh giá sản phẩm tiếng Việt:",
         height=150,
@@ -75,7 +138,14 @@ with tab1:
         if not text_input.strip():
             st.warning("Vui lòng nhập nội dung đánh giá.")
         else:
-            result = predict_one(text_input, vectorizer, model, label_mapping)
+            if model_choice == "PhoBERT":
+                with st.spinner("Đang tải PhoBERT..."):
+                    pb_tokenizer, pb_model, pb_label_mapping, pb_device = load_phobert_model()
+                result = predict_one_phobert(
+                    text_input, pb_tokenizer, pb_model, pb_label_mapping, pb_device
+                )
+            else:
+                result = predict_one(text_input, vectorizer, model, label_mapping)
 
             col1, col2 = st.columns(2)
             with col1:
@@ -84,6 +154,7 @@ with tab1:
                 color = "green" if label == "Positive" else "gray" if label == "Neutral" else "red"
                 st.markdown(f"### Kết quả: :{color}[{emoji} {label}]")
                 st.metric("Độ tin cậy", f"{result['confidence'] * 100:.1f}%")
+                st.caption(f"Model: {model_choice}")
 
             with col2:
                 st.markdown("**Xác suất từng nhãn:**")

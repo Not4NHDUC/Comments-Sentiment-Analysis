@@ -28,6 +28,22 @@ _KEEP_PATTERN = re.compile(
 )
 
 
+def restore_diacritics(text: str) -> str:
+    """Restore Vietnamese diacritics for text without tone marks."""
+    ascii_chars = sum(1 for c in text if ord(c) < 128 and c.isalpha())
+    total_chars = sum(1 for c in text if c.isalpha())
+    if total_chars == 0:
+        return text
+    ascii_ratio = ascii_chars / total_chars
+    if ascii_ratio > 0.6:
+        try:
+            from underthesea import text_normalize
+            return text_normalize(text)
+        except:
+            return text
+    return text
+
+
 def clean_text(text: str) -> str:
     text = text.lower()
     text = re.sub(r"<[^>]+>", "", text)
@@ -55,6 +71,7 @@ def remove_stopwords(text: str) -> str:
 
 
 def preprocess(text: str) -> str:
+    text = restore_diacritics(text)
     text = clean_text(text)
     text = apply_teen_code(text)
     text = tokenize(text)
